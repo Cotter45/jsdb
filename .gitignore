@@ -1,0 +1,10 @@
+DS_Store
+.DS_Store
+
+coverage
+db
+dist
+node_modules
+
+package-lock.json
+.env

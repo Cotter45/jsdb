@@ -1,0 +1,27 @@
+{
+  "extends": "@tsconfig/node18/tsconfig.json",
+  "compilerOptions": {
+    "module": "ES2022",
+    "resolveJsonModule": true,
+    "removeComments": true,
+    "outDir": "./dist",
+    "sourceMap": false,
+    "types": ["node", "jest"],
+    "strict": false,
+    "esModuleInterop": false
+  },
+  "include": ["./**/*", "./**/*.json"],
+  "exclude": [
+    "tsconfig.json",
+    "tsconfig-build.json",
+    "test.json",
+    "test-collection",
+    "test-db",
+    "package.json",
+    "package-lock.json",
+    "jest.config.ts",
+    "dist",
+    "node_modules",
+    "coverage"
+  ]
+}
