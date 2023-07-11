@@ -34,6 +34,10 @@ export class JSDB {
     }
 
     for (const file of files) {
+      if (file.startsWith('.')) {
+        continue;
+      }
+
       const collectionPath = path.join(this.directoryPath, file);
       const manager = new JsonCollectionManager(collectionPath);
       await manager.whenReady();

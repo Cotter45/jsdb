@@ -263,6 +263,10 @@ export class JsonCollectionManager {
     let results = [];
 
     for (const fileName of fileNames) {
+      if (fileName.startsWith('.')) {
+        continue;
+      }
+
       const filePath = path.join(this.directoryPath, fileName);
       const queue = this.getQueue(filePath);
 
