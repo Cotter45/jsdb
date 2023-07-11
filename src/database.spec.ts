@@ -2,11 +2,15 @@ import { JSDB } from './database.js';
 import { promises as fs } from 'fs';
 import { join } from 'path';
 
-describe('CollectionWrapper', () => {
+describe('JSDB', () => {
   const dirPath = 'test-db';
-  const collectionWrapper = new JSDB(dirPath);
+  let collectionWrapper: JSDB;
 
-  test('creates a new collection', async () => {
+  beforeAll(async () => {
+    collectionWrapper = new JSDB(dirPath);
+  });
+
+  it('creates a new collection', async () => {
     const collection = await collectionWrapper.createCollection(
       'test-collection',
       1024,
@@ -22,12 +26,32 @@ describe('CollectionWrapper', () => {
     });
   });
 
-  test('gets a collection', async () => {
-    const collection = collectionWrapper.getCollection('test-collection');
+  it('gets a collection', async () => {
+    const collection = await collectionWrapper.getCollection('test-collection');
     expect(collection).toBeDefined();
+
+    const result = await collection.get(1);
+    expect(result).toEqual({
+      id: 1,
+      name: 'test',
+      value: 123,
+    });
   });
 
-  test('deletes a collection', async () => {
+  it('should load an existing db', async () => {
+    const db = new JSDB('./db');
+
+    const collection = await db.createCollection('users');
+    expect(collection).toBeDefined();
+
+    const result = await collection.get(1);
+    expect(result).toEqual({
+      id: 1,
+      hello: 'world',
+    });
+  });
+
+  it('deletes a collection', async () => {
     await collectionWrapper.deleteCollection('test-collection');
     try {
       await collectionWrapper.getCollection('test-collection');

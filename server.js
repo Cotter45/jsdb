@@ -54,7 +54,7 @@ const server = http.createServer((req, res) => {
       return;
     } catch (err) {
       res.statusCode = 500;
-      res.end(err.message);
+      res.end('Server error');
     }
   });
 });

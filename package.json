@@ -1,11 +1,15 @@
 {
-  "name": "jsdb",
-  "version": "1.0.0",
-  "description": "A simple database for node.js",
+  "name": "@cotter45/jsdb",
+  "version": "1.0.5",
+  "description": "A persistent JSON database for node.js",
   "main": "dist/index.js",
   "types": "dist/index",
   "type": "module",
-  "keywords": [],
+  "keywords": [
+    "database",
+    "node",
+    "json"
+  ],
   "author": "Sean Cotter <cotter.github45@gmail.com>",
   "license": "MIT",
   "files": [
@@ -14,14 +18,19 @@
   "publishConfig": {
     "access": "public"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Cotter45/jsdb.git"
+  },
+  "homepage": "https://github.com/Cotter45/jsdb",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "build:release": "tsc",
-    "format": "prettier --write '**/*.{ts,js,json}'",
-    "format:check": "prettier --check '**/*.{ts,js,json}'",
+    "format": "prettier --write '**/*.{ts,js}'",
+    "format:check": "prettier --check '**/*.{ts,js}'",
     "lint": "eslint --ext .ts . --fix",
-    "lint:check": "eslint --ext .ts ./app",
-    "start": "ts-node ./app/index.ts",
+    "lint:check": "eslint --ext .ts .",
+    "start": "node sample.js",
     "pretest": "npm run lint",
     "test": "NODE_OPTIONS=--experimental-vm-modules jest --watchAll=true --detectOpenHandles",
     "test:clear": "jest --clearCache",

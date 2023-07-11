@@ -191,5 +191,17 @@ describe('JsonCollectionManager', () => {
       name: 'test-1',
       value: 1,
     });
+
+    const result2: any = await manager.insert({
+      name: 'test-1001',
+      value: 1002,
+    });
+
+    const result3 = await manager.get(result2.id);
+    expect(result3).toEqual({
+      id: result2.id,
+      name: 'test-1001',
+      value: 1002,
+    });
   });
 });

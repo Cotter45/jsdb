@@ -56,7 +56,7 @@ export class JSDB {
     const result = await this.initialize();
 
     if (result) {
-      return this.collections[name];
+      return await this.getCollection(name);
     }
 
     const collectionPath = path.join(this.directoryPath, name);
