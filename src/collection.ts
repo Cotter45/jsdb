@@ -30,9 +30,9 @@ export class JsonCollectionManager {
   /**
    * Create a new JSONCollectionManager.
    * @param directoryPath - The path of the directory where the data files are stored.
-   * @param maxFileSize - The maximum size of a data file in bytes, default is 500kb. Once a file reaches this size, it will no longer be written to.
+   * @param maxFileSize - The maximum size of a data file in bytes, default is 100kb. Once a file reaches this size, it will no longer be written to.
    */
-  constructor(directoryPath: string, maxFileSize = 500000) {
+  constructor(directoryPath: string, maxFileSize = 102400) {
     this.directoryPath = directoryPath;
     this.indexFilePath = `${directoryPath}/index.json`;
     this.id = 0;
@@ -114,6 +114,9 @@ export class JsonCollectionManager {
       );
       await this.index.insert(id, filePath);
       await this.index.awaitQueueDrain();
+      const newSize = this.getSizeInBytes(jsonData);
+      const fileName = path.basename(filePath);
+      this.fileSizes[fileName] = newSize;
       return data;
     });
   }
@@ -205,6 +208,9 @@ export class JsonCollectionManager {
 
       await this.index.update(id, filePath);
       await this.index.awaitQueueDrain();
+      const size = this.getSizeInBytes(updatedData);
+      const fileName = path.basename(filePath);
+      this.fileSizes[fileName] = size;
       return data;
     });
   }
@@ -229,6 +235,9 @@ export class JsonCollectionManager {
       );
       await this.index.delete(id);
       await this.index.awaitQueueDrain();
+      const size = this.getSizeInBytes(updatedData);
+      const fileName = path.basename(filePath);
+      this.fileSizes[fileName] = size;
       return item;
     });
   }
@@ -378,6 +387,17 @@ export class JsonCollectionManager {
       const data = JSON.parse(json);
       this.index.preload(data);
       this.id = Object.keys(data).length;
+      // get file sizes
+      const files = await fs.readdir(this.directoryPath);
+      for (const file of files) {
+        if (file === 'index.json') {
+          continue;
+        }
+
+        const filePath = `${this.directoryPath}/${file}`;
+        const stats = await fs.stat(filePath);
+        this.fileSizes[file] = stats.size;
+      }
 
       // Indicate that the class instance is ready to be used
       return this._resolveReadyMethod();
