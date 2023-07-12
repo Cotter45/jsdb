@@ -197,7 +197,7 @@ export class HashMap<T> {
       this.currentId = data.currentId;
       this._resolveReadyMethod();
     } catch (err) {
-      await fs.writeFile(this.filePath, '{ "currentId": 1 }', 'utf-8');
+      await fs.writeFile(this.filePath, '{}', 'utf-8');
       this._resolveReadyMethod();
     }
   }

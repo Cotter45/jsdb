@@ -1,6 +1,6 @@
 {
   "name": "@cotter45/jsdb",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "A persistent JSON database for node.js",
   "main": "dist/index.js",
   "types": "dist/index",

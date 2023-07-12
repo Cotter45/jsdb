@@ -356,7 +356,7 @@ export class JsonCollectionManager {
     } catch (err) {
       // If the file doesn't exist, create it
       if (err.code === 'ENOENT') {
-        await fs.writeFile(this.indexFilePath, '{"currentId":0}', 'utf-8');
+        await fs.writeFile(this.indexFilePath, '{}', 'utf-8');
         return this._resolveReadyMethod();
       }
 
