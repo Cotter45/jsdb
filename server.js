@@ -37,7 +37,7 @@ const server = http.createServer((req, res) => {
 
         case 'PUT':
           const updatedItem = JSON.parse(data);
-          await collection.update(updatedItem.id, updatedItem);
+          await collection.update(id, updatedItem);
           res.end('Item updated');
           break;
 
@@ -53,6 +53,7 @@ const server = http.createServer((req, res) => {
 
       return;
     } catch (err) {
+      console.log(err);
       res.statusCode = 500;
       res.end('Server error');
     }

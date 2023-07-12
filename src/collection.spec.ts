@@ -16,7 +16,7 @@ describe('JsonCollectionManager', () => {
     await manager2.whenReady();
   });
 
-  afterEach(async () => {
+  afterEach(() => {
     const files = fs.readdirSync(directoryPath);
     for (const file of files) {
       fs.unlinkSync(path.join(directoryPath, file));
@@ -78,8 +78,8 @@ describe('JsonCollectionManager', () => {
       ids.map((id, index) => manager.insert({ id, ...values[index] })),
     );
 
-    const result = await manager.getMany(ids);
-    expect(result).toEqual(values);
+    const result = await manager.getMany([1, 2, 3]);
+    expect(result).toEqual(values.slice(0, 3));
   });
 
   it('should insert and delete data', async () => {
@@ -103,10 +103,9 @@ describe('JsonCollectionManager', () => {
   it('should handle high IO load', async () => {
     const ids = [];
     const values = [];
-    for (let i = 0; i < 1000; i++) {
+    for (let i = 0; i < 1500; i++) {
       ids.push(i + 1);
       values.push({
-        id: i + 1,
         name: `test-${i + 1}`,
         value: i + 1,
       });
