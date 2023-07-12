@@ -175,7 +175,7 @@ export class JsonCollectionManager {
       const size = this.getSizeInBytes(updatedData);
       const fileName = path.basename(filePath);
       this.fileSizes[fileName] = size;
-      return data;
+      return updatedData.find((item: any) => item.id === id);
     });
   }
 
