@@ -29,7 +29,7 @@ import JSDB from '@cotter45/jsdb';
 const db = new JSDB('./data');
 
 /**
- * Callbacks
+ * Promises
  */
 
 // Create a collection, specify the name and the maximum size of each document in bytes - default is 500KB

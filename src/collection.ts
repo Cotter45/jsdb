@@ -20,7 +20,7 @@ export class JsonCollectionManager {
   private id: number;
   private directoryPath: string;
   private indexFilePath: string;
-  private index: HashMap<string>;
+  private index: HashMap<string | number>;
   private maxFileSize: number;
   private fileQueues: Record<string, PQueue>;
   private fileSizes: Record<string, number> = {};
@@ -71,19 +71,13 @@ export class JsonCollectionManager {
    * @param data - The item to be inserted.
    */
   public async insert(data: any): Promise<void> {
-    const id = this.id + 1;
-    this.id = id;
-    let filePath: any = await this.index.get(id);
-    const size = this.getSizeInBytes(data);
+    this.id += 1;
+    const id = this.id;
 
-    if (!filePath) {
-      // This is a new entry, let's find a suitable file
-      filePath = await this.findFileForInsertion(size);
-      await this.index.insert(id, filePath);
-    }
+    const filePath = await this.findFileForInsertion(this.getSizeInBytes(data));
 
     // Get or create the queue for this file
-    let queue = this.getQueue(filePath);
+    const queue = this.getQueue(filePath);
 
     // Return a promise that resolves when the operation is complete
     return queue.add(async () => {
@@ -93,27 +87,11 @@ export class JsonCollectionManager {
         jsonData = await this.readJsonFile(filePath);
       } catch (err) {}
 
-      if (this.getSizeInBytes(jsonData) + size > this.maxFileSize) {
-        // If data doesn't fit, create a new file
-        filePath = this.getNewFilePath();
-        await this.index.update(id, filePath);
-        queue = this.getQueue(filePath); // Update the queue
-        jsonData = []; // We're working with a new file now
-      }
-
       data.id = id;
       jsonData = jsonData.filter((item: any) => item.id !== id);
       jsonData.push(data);
-      filePath = `${
-        filePath.includes('.json') ? filePath : filePath + '.json'
-      }`;
-      await fs.writeFile(
-        `${filePath}`,
-        JSON.stringify(jsonData, null, 2),
-        'utf-8',
-      );
+      await fs.writeFile(`${filePath}`, JSON.stringify(jsonData), 'utf-8');
       await this.index.insert(id, filePath);
-      await this.index.awaitQueueDrain();
       const newSize = this.getSizeInBytes(jsonData);
       const fileName = path.basename(filePath);
       this.fileSizes[fileName] = newSize;
@@ -137,17 +115,12 @@ export class JsonCollectionManager {
   private async getDocument(id: number): Promise<any> {
     const filePath = await this.index.get(id);
 
-    if (!filePath) {
+    if (!filePath || typeof filePath !== 'string') {
       throw new Error(`No data found for id: ${id}`);
     }
 
-    // Get the queue for this file
-    const queue = this.getQueue(filePath);
-
-    return queue.add(async () => {
-      const jsonData = await this.readJsonFile(filePath);
-      return jsonData;
-    });
+    const jsonData = await this.readJsonFile(filePath);
+    return jsonData;
   }
 
   /**
@@ -155,11 +128,8 @@ export class JsonCollectionManager {
    * @param ids - An array of IDs of the items.
    */
   public async getMany(ids: number[]): Promise<any> {
-    let documents = await this.getManyDocuments(ids);
-    documents = documents.filter((doc: any) => doc);
-    documents = documents.flat();
-    const items = documents.filter((doc: any) => ids.includes(doc.id));
-    return items;
+    const documents = await this.getManyDocuments(ids);
+    return documents;
   }
 
   private async getManyDocuments(ids: number[]): Promise<any> {
@@ -200,14 +170,8 @@ export class JsonCollectionManager {
         return item;
       });
 
-      await fs.writeFile(
-        `${filePath}`,
-        JSON.stringify(updatedData, null, 2),
-        'utf-8',
-      );
+      await fs.writeFile(`${filePath}`, JSON.stringify(updatedData), 'utf-8');
 
-      await this.index.update(id, filePath);
-      await this.index.awaitQueueDrain();
       const size = this.getSizeInBytes(updatedData);
       const fileName = path.basename(filePath);
       this.fileSizes[fileName] = size;
@@ -228,16 +192,19 @@ export class JsonCollectionManager {
       const updatedData = jsonData.filter((item: any) => item.id !== id);
       const item = jsonData.find((item: any) => item.id === id);
 
-      await fs.writeFile(
-        `${filePath}`,
-        JSON.stringify(updatedData, null, 2),
-        'utf-8',
-      );
-      await this.index.delete(id);
-      await this.index.awaitQueueDrain();
+      await fs.writeFile(`${filePath}`, JSON.stringify(updatedData), 'utf-8');
+
       const size = this.getSizeInBytes(updatedData);
-      const fileName = path.basename(filePath);
-      this.fileSizes[fileName] = size;
+
+      if (size === 0) {
+        await this.index.delete(id);
+        await this.index.awaitQueueDrain();
+        await fs.unlink(filePath);
+        delete this.fileSizes[path.basename(filePath)];
+      } else {
+        const fileName = path.basename(filePath);
+        this.fileSizes[fileName] = size;
+      }
       return item;
     });
   }
@@ -260,48 +227,6 @@ export class JsonCollectionManager {
     },
   ): Promise<any[]> {
     const fileNames = await fs.readdir(this.directoryPath);
-    let results = [];
-
-    for (const fileName of fileNames) {
-      if (fileName.startsWith('.')) {
-        continue;
-      }
-
-      const filePath = path.join(this.directoryPath, fileName);
-      const queue = this.getQueue(filePath);
-
-      const fileResults = await queue.add(async () => {
-        let fileData = JSON.parse(await fs.readFile(filePath, 'utf-8'));
-
-        // If fileData is not an array, wrap it in an array so Fuse can work
-        if (!Array.isArray(fileData)) {
-          fileData = [fileData];
-        }
-
-        const fuseOptions = {
-          keys,
-          isCaseSensitive: false,
-          includeScore: true,
-          shouldSort: true,
-          findAllMatches: true,
-          minMatchCharLength: 2,
-          threshold: 0.6,
-          location: 0,
-          distance: 100,
-        };
-
-        const fuse = new Fuse(fileData, fuseOptions);
-        const results = fuse.search(text);
-
-        return results.map((result: any) => result.item);
-      });
-
-      results = results.concat(fileResults);
-      if (results.length >= limit) {
-        break;
-      }
-    }
-
     const fuseOptions = {
       keys,
       isCaseSensitive: false,
@@ -313,28 +238,42 @@ export class JsonCollectionManager {
       location: 0,
       distance: 100,
     };
+    let allItems = [];
 
-    const fuse = new Fuse(results, fuseOptions);
-    results = fuse.search(text);
+    for (const fileName of fileNames) {
+      if (fileName.startsWith('.') || fileName === 'index.json') {
+        continue;
+      }
 
-    return results
+      const filePath = path.join(this.directoryPath, fileName);
+      let fileData = JSON.parse(await fs.readFile(filePath, 'utf-8'));
+
+      // If fileData is not an array, wrap it in an array so Fuse can work
+      if (!Array.isArray(fileData)) {
+        fileData = [fileData];
+      }
+
+      const fuse = new Fuse(fileData, fuseOptions);
+      const searchResults = fuse.search(text);
+      const items = searchResults.map((result: any) => result.item);
+      allItems = allItems.concat(items);
+    }
+
+    const fuseAll = new Fuse(allItems, fuseOptions);
+    const finalResults = fuseAll.search(text);
+
+    return finalResults
       .map((result: any) => result.item)
       .slice(offset, offset + limit);
   }
 
   private async findFileForInsertion(dataSize: number): Promise<string> {
-    const files = await fs.readdir(this.directoryPath);
-    for (const file of files) {
-      if (file === 'index.json') {
-        continue;
-      }
-
-      if (
-        !this.fileSizes[file] ||
-        this.fileSizes[file] + dataSize <= this.maxFileSize
-      ) {
-        this.fileSizes[file] = (this.fileSizes[file] || 0) + dataSize;
-        return `${this.directoryPath}/${file}`;
+    const files = Object.entries(this.fileSizes);
+    for (const [fileName, size] of files) {
+      // Ensure that the new data fits into the file
+      if (size + dataSize <= this.maxFileSize) {
+        this.fileSizes[fileName] = (size || 0) + dataSize;
+        return `${fileName}`; // <-- might be here
       }
     }
 
@@ -349,7 +288,6 @@ export class JsonCollectionManager {
       return [];
     }
 
-    filePath = filePath.includes('.json') ? filePath : filePath + '.json';
     const nativePath = path.resolve(`${filePath}`);
     try {
       await fs.access(nativePath);
@@ -365,7 +303,7 @@ export class JsonCollectionManager {
   private getNewFilePath(): string {
     // Use timestamp for unique file name
     const timestamp = new Date().getTime();
-    return `${this.directoryPath}/${timestamp}`;
+    return `${this.directoryPath}/${timestamp}.json`;
   }
 
   private getSizeInBytes(object: any): number {
@@ -375,7 +313,13 @@ export class JsonCollectionManager {
 
   private getQueue(filePath: string): PQueue {
     if (!this.fileQueues[filePath]) {
-      this.fileQueues[filePath] = new PQueue({ concurrency: 1 });
+      const queue = new PQueue({ concurrency: 1 });
+
+      queue.on('idle', async () => {
+        await this.index.awaitQueueDrain();
+      });
+
+      this.fileQueues[filePath] = queue;
     }
 
     return this.fileQueues[filePath];
@@ -389,8 +333,8 @@ export class JsonCollectionManager {
       // Read the file content and parse it to JSON
       const json = await fs.readFile(this.indexFilePath, 'utf-8');
       const data = JSON.parse(json);
-      this.index.preload(data);
-      this.id = Object.keys(data).length;
+      this.id = data.currentId;
+
       // get file sizes
       const files = await fs.readdir(this.directoryPath);
       for (const file of files) {
@@ -398,19 +342,26 @@ export class JsonCollectionManager {
           continue;
         }
 
+        if (file.startsWith('.')) {
+          continue;
+        }
+
         const filePath = `${this.directoryPath}/${file}`;
         const stats = await fs.stat(filePath);
-        this.fileSizes[file] = stats.size;
+        this.fileSizes[`${this.directoryPath}/${file}`] = stats.size;
       }
 
       // Indicate that the class instance is ready to be used
       return this._resolveReadyMethod();
     } catch (err) {
-      // If the file doesn't exist, create it with an empty JSON object
-      await fs.writeFile(this.indexFilePath, '{}', 'utf-8');
+      // If the file doesn't exist, create it
+      if (err.code === 'ENOENT') {
+        await fs.writeFile(this.indexFilePath, '{}', 'utf-8');
+        return this._resolveReadyMethod();
+      }
 
-      // Indicate that the class instance is ready to be used
-      return this._resolveReadyMethod();
+      // If the error is not because the file doesn't exist, throw it
+      throw err;
     }
   }
 }

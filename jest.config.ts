@@ -14,6 +14,11 @@ const jestConfig: JestConfigWithTsJest = {
       },
     ],
   },
+  watchPathIgnorePatterns: [
+    '<rootDir>/node_modules/',
+    '<rootDir>/dist/',
+    '<rootDir>/test-data/',
+  ],
 };
 
 export default jestConfig;
