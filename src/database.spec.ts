@@ -13,7 +13,6 @@ describe('JSDB', () => {
   it('creates a new collection', async () => {
     const collection = await collectionWrapper.createCollection(
       'test-collection',
-      1024,
     );
     expect(collection).toBeDefined();
 

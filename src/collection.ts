@@ -52,26 +52,11 @@ export class JsonCollectionManager {
   }
 
   /**
-   * Returns a promise that resolves when the JSONCollectionManager is ready to use.
-   */
-
-  public whenReady(): Promise<void> {
-    return this._ready;
-  }
-
-  private _resolveReadyMethod(): void {
-    if (this._resolveReady) {
-      this._resolveReady();
-      this._resolveReady = null; // Avoid multiple calls
-    }
-  }
-
-  /**
    * Insert an item into the collection. It assigns a unique ID to the item and stores it in the appropriate file.
    * @param data - The item to be inserted.
    */
   public async insert(data: any): Promise<void> {
-    this.id += 1;
+    this.id = this.id ? this.id + 1 : 1;
     const id = this.id;
 
     const filePath = await this.findFileForInsertion(this.getSizeInBytes(data));
@@ -198,7 +183,6 @@ export class JsonCollectionManager {
 
       if (size === 0) {
         await this.index.delete(id);
-        await this.index.awaitQueueDrain();
         await fs.unlink(filePath);
         delete this.fileSizes[path.basename(filePath)];
       } else {
@@ -325,18 +309,20 @@ export class JsonCollectionManager {
     return this.fileQueues[filePath];
   }
 
-  private async loadFromFile(): Promise<void> {
+  private loadFromFile(): void {
     try {
       // Check if the file exists
-      await fs.access(this.indexFilePath);
+      if (!filesSync.existsSync(this.indexFilePath)) {
+        throw new Error('Index file does not exist');
+      }
 
       // Read the file content and parse it to JSON
-      const json = await fs.readFile(this.indexFilePath, 'utf-8');
+      const json = filesSync.readFileSync(this.indexFilePath, 'utf-8');
       const data = JSON.parse(json);
       this.id = data.currentId;
 
       // get file sizes
-      const files = await fs.readdir(this.directoryPath);
+      const files = filesSync.readdirSync(this.directoryPath);
       for (const file of files) {
         if (file === 'index.json') {
           continue;
@@ -347,17 +333,14 @@ export class JsonCollectionManager {
         }
 
         const filePath = `${this.directoryPath}/${file}`;
-        const stats = await fs.stat(filePath);
-        this.fileSizes[`${this.directoryPath}/${file}`] = stats.size;
+        const stats = filesSync.statSync(filePath);
+        this.fileSizes[`${filePath}`] = stats.size;
       }
-
-      // Indicate that the class instance is ready to be used
-      return this._resolveReadyMethod();
     } catch (err) {
       // If the file doesn't exist, create it
       if (err.code === 'ENOENT') {
-        await fs.writeFile(this.indexFilePath, '{}', 'utf-8');
-        return this._resolveReadyMethod();
+        filesSync.writeFileSync(this.indexFilePath, '{}', 'utf-8');
+        return;
       }
 
       // If the error is not because the file doesn't exist, throw it

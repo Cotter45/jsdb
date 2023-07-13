@@ -1,6 +1,6 @@
 {
   "name": "@cotter45/jsdb",
-  "version": "1.1.2",
+  "version": "1.1.5",
   "description": "A persistent JSON database for node.js",
   "main": "dist/index.js",
   "types": "dist/index",
@@ -25,7 +25,6 @@
   "homepage": "https://github.com/Cotter45/jsdb",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "build:release": "tsc",
     "format": "prettier --write '**/*.{ts,js}'",
     "format:check": "prettier --check '**/*.{ts,js}'",
     "lint": "eslint --ext .ts . --fix",
@@ -36,7 +35,7 @@
     "test:clear": "jest --clearCache",
     "test:coverage": "NODE_OPTIONS=--experimental-vm-modules jest --coverage --watchAll=false --detectOpenHandles",
     "update": "ncu -u && npm install",
-    "prepare": "npm run build:release",
+    "prepare": "npm run build",
     "prepublishOnly": "npm run test:coverage && npm run lint:check && npm run format:check",
     "preversion": "npm run lint:check",
     "version": "npm run format:check && git add -A src",

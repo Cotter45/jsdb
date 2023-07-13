@@ -1,4 +1,5 @@
 import { promises as fs } from 'fs';
+import * as fileSync from 'fs';
 import PQueue from 'p-queue';
 
 /**
@@ -172,12 +173,14 @@ export class HashMap<T> {
     }
   }
 
-  private async loadFromFile(): Promise<void> {
+  private loadFromFile(): void {
     // if file doesn't exist, create it
     try {
-      await fs.access(this.filePath);
+      if (!fileSync.existsSync(this.filePath)) {
+        throw new Error('Index file does not exist');
+      }
 
-      const json = await fs.readFile(this.filePath, 'utf-8');
+      const json = fileSync.readFileSync(this.filePath, 'utf-8');
       const data = JSON.parse(json);
       this.store = data;
 
@@ -195,10 +198,10 @@ export class HashMap<T> {
       }
 
       this.currentId = data.currentId;
-      this._resolveReadyMethod();
     } catch (err) {
-      await fs.writeFile(this.filePath, '{}', 'utf-8');
-      this._resolveReadyMethod();
+      this.store = {};
+      this.currentId = 1;
+      fileSync.writeFileSync(this.filePath, '{}', 'utf-8');
     }
   }
 

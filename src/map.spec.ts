@@ -11,9 +11,8 @@ describe('HashMap', () => {
   beforeEach(async () => {
     // Each test gets its own HashMap and file
     tree1 = new HashMap<number>(filePath1);
-    await tree1.whenReady();
     tree2 = new HashMap<number>(filePath2);
-    await tree2.whenReady();
+
     await fs.writeFile(filePath1, '{}', 'utf-8');
     await fs.writeFile(filePath2, '{}', 'utf-8');
   });
@@ -48,7 +47,6 @@ describe('HashMap', () => {
     expect(await tree2.get(3)).toBe(131415);
     expect(await tree2.get(4)).toBe(131415);
     expect(await tree2.get(5)).toBe(131415);
-    await tree2.awaitQueueDrain();
   });
 
   it('should delete a mapping', async () => {
@@ -73,7 +71,6 @@ describe('HashMap', () => {
 
   it('should load a tree from a file', async () => {
     const tree = new HashMap<number>('test.json');
-    await tree.whenReady();
 
     expect(await tree.get(1)).toBe(123);
     expect(await tree.get(20)).toBe(456);
@@ -82,7 +79,6 @@ describe('HashMap', () => {
 
   it('should handle high IO load', async () => {
     const tree = new HashMap<number>(filePath3);
-    await tree.whenReady();
 
     const keys = Array.from({ length: 1000 }, (_, i) => i + 1);
     const value = 123;

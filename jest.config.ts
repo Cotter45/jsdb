@@ -19,6 +19,7 @@ const jestConfig: JestConfigWithTsJest = {
     '<rootDir>/dist/',
     '<rootDir>/test-data/',
   ],
+  rootDir: './src',
 };
 
 export default jestConfig;
