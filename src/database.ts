@@ -1,6 +1,6 @@
 import { JsonCollectionManager } from './collection.js';
 import { promises as fs } from 'fs';
-import * as files from 'fs';
+import * as fileSync from 'fs';
 import * as path from 'path';
 
 /**
@@ -18,33 +18,9 @@ export class JSDB {
     this.collections = {};
     this.directoryPath = directoryPath;
 
-    if (!files.existsSync(this.directoryPath)) {
-      files.mkdirSync(this.directoryPath);
+    if (!fileSync.existsSync(this.directoryPath)) {
+      fileSync.mkdirSync(this.directoryPath);
     }
-  }
-
-  /**
-   * Returns a promise that will resolve when the JSDB is ready to be used.
-   * @returns {Promise<boolean>} - A promise that will resolve when the JSDB is ready to be used. If the directory is empty, it will resolve to false.
-   */
-  async initialize(): Promise<boolean> {
-    const files = await fs.readdir(this.directoryPath);
-    if (files.length === 0) {
-      return false;
-    }
-
-    for (const file of files) {
-      if (file.startsWith('.')) {
-        continue;
-      }
-
-      const collectionPath = path.join(this.directoryPath, file);
-      const manager = new JsonCollectionManager(collectionPath);
-      await manager.whenReady();
-      this.collections[file] = manager;
-    }
-
-    return true;
   }
 
   /**
@@ -57,15 +33,8 @@ export class JSDB {
     name: string,
     maxFileSize = 500000, // 500KB,
   ): Promise<JsonCollectionManager> {
-    const result = await this.initialize();
-
-    if (result) {
-      return await this.getCollection(name);
-    }
-
     const collectionPath = path.join(this.directoryPath, name);
     const manager = new JsonCollectionManager(collectionPath, maxFileSize);
-    await manager.whenReady();
     this.collections[name] = manager;
     return manager;
   }
@@ -77,7 +46,6 @@ export class JSDB {
    */
   async getCollection(name: string): Promise<JsonCollectionManager> {
     const collection = this.collections[name];
-    await collection.whenReady();
     return collection;
   }
 

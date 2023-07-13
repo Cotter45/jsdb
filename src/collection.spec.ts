@@ -11,9 +11,7 @@ describe('JsonCollectionManager', () => {
 
   beforeEach(async () => {
     manager = new JsonCollectionManager(directoryPath);
-    await manager.whenReady();
     manager2 = new JsonCollectionManager(directoryPath2);
-    await manager2.whenReady();
   });
 
   afterEach(() => {
@@ -182,7 +180,6 @@ describe('JsonCollectionManager', () => {
 
   it('should load from an existing directory', async () => {
     const manager = new JsonCollectionManager('./test-collection');
-    await manager.whenReady();
 
     const result = await manager.get(1);
     expect(result).toEqual({
