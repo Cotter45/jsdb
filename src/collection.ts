@@ -255,13 +255,29 @@ export class JsonCollectionManager {
   /**
    * Where is a method for you to customize your filter.
    * @param where - Function to filter the data
+   * @param limit - Limit the number of results
+   * @param offset - Offset the results
    * @returns {Promise<T>}
    */
-  public async where<T>(where: (data: T) => boolean): Promise<T[]> {
+  public async where<T>({
+    filter,
+    limit,
+    offset,
+  }: {
+    filter: (item: T) => boolean;
+    limit?: number;
+    offset?: number;
+  }): Promise<T[]> {
     const fileNames = await fs.readdir(this.directoryPath);
-    let allItems = [];
+    let allItems: T[] = [];
+
+    let count = 0; // To keep track of the total number of items found
 
     for (const fileName of fileNames) {
+      if (limit && count >= limit + offset) {
+        break;
+      }
+
       if (fileName.startsWith('.') || fileName === 'index.json') {
         continue;
       }
@@ -269,8 +285,16 @@ export class JsonCollectionManager {
       const filePath = path.join(this.directoryPath, fileName);
 
       const jsonData = await this.readJsonFile(filePath);
-      const items = jsonData.filter(where);
+      const items = jsonData.filter(filter);
+
+      if (limit && count + items.length > limit) {
+        const itemsToTake = limit - count;
+        allItems = allItems.concat(items.slice(0, itemsToTake));
+        break;
+      }
+
       allItems = allItems.concat(items);
+      count += items.length;
     }
 
     return allItems;

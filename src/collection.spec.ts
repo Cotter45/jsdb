@@ -198,13 +198,71 @@ describe('JsonCollectionManager', () => {
       ids.map((id, index) => manager.insert({ id, ...values[index] })),
     );
 
-    const result = await manager.where<Val>((item) => item.value > 500);
+    const result = await manager.where<Val>({
+      filter: (item) => item.value > 500,
+    });
 
     expect(result.length).toEqual(501);
     expect(result[0]).toEqual({
       id: 501,
       name: 'test-501',
       value: 501,
+    });
+  });
+
+  it('should run the where method to get multiple filtered results with limit and offset', async () => {
+    type Val = {
+      id: number;
+      name: string;
+      value: number;
+    };
+
+    const ids = [];
+    const values = [];
+    for (let i = 0; i < 1000; i++) {
+      ids.push(i + 1);
+      values.push({
+        id: i + 1,
+        name: `test-${i + 1}`,
+        value: i + 1,
+      });
+    }
+
+    ids.push(1001);
+    values.push({
+      id: 1001,
+      name: 'onomatopoeia',
+      value: 1001,
+    });
+
+    await Promise.all(
+      ids.map((id, index) => manager.insert({ id, ...values[index] })),
+    );
+
+    const result = await manager.where<Val>({
+      filter: (item) => item.value > 500,
+      limit: 50,
+      offset: 0,
+    });
+
+    expect(result.length).toEqual(50);
+    expect(result[0]).toEqual({
+      id: 501,
+      name: 'test-501',
+      value: 501,
+    });
+
+    const result2 = await manager.where<Val>({
+      filter: (item) => item.name === 'onomatopoeia',
+      limit: 50,
+      offset: 0,
+    });
+
+    expect(result2.length).toEqual(1);
+    expect(result2[0]).toEqual({
+      id: 1001,
+      name: 'onomatopoeia',
+      value: 1001,
     });
   });
 
