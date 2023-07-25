@@ -55,7 +55,7 @@ export class JsonCollectionManager {
    * Insert an item into the collection. It assigns a unique ID to the item and stores it in the appropriate file.
    * @param data - The item to be inserted.
    */
-  public async insert(data: any): Promise<void> {
+  public async insert<T>(data: T): Promise<(T & { id: number }) | void> {
     this.id = this.id ? this.id + 1 : 1;
     const id = this.id;
 
@@ -72,15 +72,16 @@ export class JsonCollectionManager {
         jsonData = await this.readJsonFile(filePath);
       } catch (err) {}
 
-      data.id = id;
+      const newData = { ...data, id };
+
       jsonData = jsonData.filter((item: any) => item.id !== id);
-      jsonData.push(data);
+      jsonData.push(newData);
       await fs.writeFile(`${filePath}`, JSON.stringify(jsonData), 'utf-8');
       await this.index.insert(id, filePath);
       const newSize = this.getSizeInBytes(jsonData);
       const fileName = path.basename(filePath);
       this.fileSizes[fileName] = newSize;
-      return data;
+      return newData;
     });
   }
 
@@ -88,7 +89,7 @@ export class JsonCollectionManager {
    * Retrieve an item from the collection.
    * @param id - The ID of the item.
    */
-  public async get(id: number): Promise<any> {
+  public async get<T>(id: number): Promise<T> {
     const document = await this.getDocument(id);
     if (!document) {
       return null;
@@ -112,7 +113,7 @@ export class JsonCollectionManager {
    * Retrieve multiple items from the collection.
    * @param ids - An array of IDs of the items.
    */
-  public async getMany(ids: number[]): Promise<any> {
+  public async getMany<T>(ids: number[]): Promise<T> {
     const documents = await this.getManyDocuments(ids);
     return documents;
   }
@@ -134,7 +135,7 @@ export class JsonCollectionManager {
    * @param id - The ID of the item.
    * @param data - An object containing the new values. It will be merged with the current item data.
    */
-  public async update(id: number, data: any): Promise<any> {
+  public async update<T>(id: number, data: T): Promise<T> {
     const document = await this.getDocument(id);
     if (!document) {
       throw new Error(`No data found for id: ${id}`);
@@ -168,7 +169,7 @@ export class JsonCollectionManager {
    * Delete an item from the collection.
    * @param id - The ID of the item.
    */
-  public async delete(id: number): Promise<any> {
+  public async delete<T>(id: number): Promise<T> {
     const filePath: any = await this.index.get(id);
     const queue = this.getQueue(filePath);
 
@@ -198,7 +199,7 @@ export class JsonCollectionManager {
    * @param text - The search string.
    * @param options - The search options.
    */
-  public async search(
+  public async search<T>(
     text: string,
     {
       limit = 50,
@@ -209,7 +210,7 @@ export class JsonCollectionManager {
       offset?: number;
       keys?: string[];
     },
-  ): Promise<any[]> {
+  ): Promise<T> {
     const fileNames = await fs.readdir(this.directoryPath);
     const fuseOptions = {
       keys,
@@ -217,7 +218,7 @@ export class JsonCollectionManager {
       includeScore: true,
       shouldSort: true,
       findAllMatches: true,
-      minMatchCharLength: 2,
+      minMatchCharLength: 4,
       threshold: 0.6,
       location: 0,
       distance: 100,
@@ -249,6 +250,30 @@ export class JsonCollectionManager {
     return finalResults
       .map((result: any) => result.item)
       .slice(offset, offset + limit);
+  }
+
+  /**
+   * Where is a method for you to customize your filter.
+   * @param where - Function to filter the data
+   * @returns {Promise<T>}
+   */
+  public async where<T>(where: (data: T) => boolean): Promise<T[]> {
+    const fileNames = await fs.readdir(this.directoryPath);
+    let allItems = [];
+
+    for (const fileName of fileNames) {
+      if (fileName.startsWith('.') || fileName === 'index.json') {
+        continue;
+      }
+
+      const filePath = path.join(this.directoryPath, fileName);
+
+      const jsonData = await this.readJsonFile(filePath);
+      const items = jsonData.filter(where);
+      allItems = allItems.concat(items);
+    }
+
+    return allItems;
   }
 
   private async findFileForInsertion(dataSize: number): Promise<string> {

@@ -30,21 +30,6 @@ export class HashMap<T> {
   }
 
   /**
-   * Returns a promise that will resolve when the HashMap is ready to be used.
-   * @returns {Promise<void>}
-   */
-  public whenReady(): Promise<void> {
-    return this._ready;
-  }
-
-  private _resolveReadyMethod(): void {
-    if (this._resolveReady) {
-      this._resolveReady();
-      this._resolveReady = null; // Avoid multiple calls
-    }
-  }
-
-  /**
    * Updates the hashmap based on preload data.
    * @param {T{}} preloadData The preload data.
    * @returns {Promise<void>}
@@ -81,9 +66,9 @@ export class HashMap<T> {
    * Insert a key-value pair into the hashmap.
    * @param {number} key The key to insert.
    * @param {T} value The value to insert.
-   * @returns {Promise<void>}
+   * @returns {Promise<void | T>}
    */
-  public async insert(id: number, value: T): Promise<void> {
+  public async insert(id: number, value: T): Promise<void | T> {
     return this.updateQueue.add(() => {
       const key = this.getKey(id);
       const currentStoreId: any = this.store['currentId'] || 1;
@@ -119,15 +104,16 @@ export class HashMap<T> {
 
       const newKey = `${id}-${newEnd}`;
       this.store[newKey] = value;
+      return value;
     });
   }
 
   /**
    * Get a value from the hashmap by its key.
    * @param {number} id The key to retrieve.
-   * @returns {Promise<T | void>} Returns a Promise that resolves to the value or undefined.
+   * @returns {Promise<number | T>} Returns a Promise that resolves to the value or undefined.
    */
-  public async get(id: number): Promise<T | void | number> {
+  public async get(id: number): Promise<void | number | T> {
     return this.updateQueue.add(() => {
       const rangeKey = this.getKey(id);
       if (!rangeKey) return null;
