@@ -1,6 +1,6 @@
 # JSDB
 
-A lightweight, file-based JSON database manager for Node.js, inspired by MongoDB's approach to handling data. This is especially useful for small-scale applications, prototyping or for when a full-blown database setup is unnecessary.
+A lightweight, file-based JSON database manager for Node.js. This is especially useful for small-scale applications, prototyping or for when a full-blown database setup is unnecessary.
 
 # Features
 
@@ -28,23 +28,15 @@ import JSDB from '@cotter45/jsdb';
 // or load an existing one if it does
 const db = new JSDB('./data');
 
-/**
- * Promises
- */
-
-// Create a collection, specify the name and the maximum size of each document in bytes - default is 500KB
+// Create a collection, specify the name and the maximum size of each document in bytes - default is 100KB
 // If the collection already exists, it will be loaded
-db.createCollection('users', 10 * 1024 * 1024).then((users) => {
-  // Use your collection here
+const users = db.createCollection('users', 10 * 1024 * 1024);
+
+// Mthods on collections are async
+const user = await users.insert({
+  name: 'Alice',
+  email: 'alice@wonderland.com',
 });
-
-/**
- * Async/Await
- */
-
-// Create a collection, specify the name and the maximum size of each document in bytes - default is 500KB
-// If the collection already exists, it will be loaded
-const users = await db.createCollection('users', 10 * 1024 * 1024);
 
 // Delete a collection
 await db.deleteCollection('users');
@@ -63,7 +55,7 @@ import JSDB from '@cotter45/jsdb';
 const db = new JSDB('./data');
 
 // Create a collection
-const users = await db.createCollection('users');
+const users = db.createCollection('users');
 ```
 
 ## Insert
@@ -115,6 +107,19 @@ const searchUser = await users.search('bob@exa', {
   offset: 0,
 });
 // searchUser = [{ id: 1, name: 'Bob', email: 'bob@example' }]
+```
+
+## Where
+
+```javascript
+// Custom filter function, passed as callback to Array.filter()
+// Limit and offset are optional
+const whereUser = await users.where({
+  filter: (user) => user.name === 'Bob',
+  limit: 1,
+  offset: 0,
+});
+// whereUser = [{ id: 1, name: 'Bob', email: 'bob@example' }]
 ```
 
 # API Documentation
