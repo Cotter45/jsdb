@@ -113,11 +113,12 @@ const searchUser = await users.search('bob@exa', {
 
 ```javascript
 // Custom filter function, passed as callback to Array.filter()
-// Limit and offset are optional
+// Limit, offset, and order are optional
 const whereUser = await users.where({
   filter: (user) => user.name === 'Bob',
   limit: 1,
   offset: 0,
+  order: 'desc',
 });
 // whereUser = [{ id: 1, name: 'Bob', email: 'bob@example' }]
 ```

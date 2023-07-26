@@ -266,6 +266,50 @@ describe('JsonCollectionManager', () => {
     });
   });
 
+  it('should run where with order = desc', async () => {
+    type Val = {
+      id: number;
+      name: string;
+      value: number;
+    };
+
+    const ids = [];
+    const values = [];
+    for (let i = 0; i < 1000; i++) {
+      ids.push(i + 1);
+      values.push({
+        id: i + 1,
+        name: `test-${i + 1}`,
+        value: i + 1,
+      });
+    }
+
+    ids.push(1001);
+    values.push({
+      id: 1001,
+      name: 'onomatopoeia',
+      value: 1001,
+    });
+
+    await Promise.all(
+      ids.map((id, index) => manager.insert({ id, ...values[index] })),
+    );
+
+    const result = await manager.where<Val>({
+      filter: (item) => item.value > 500,
+      limit: 50,
+      offset: 0,
+      order: 'desc',
+    });
+
+    expect(result.length).toEqual(50);
+    expect(result[0]).toEqual({
+      id: 1001,
+      name: 'onomatopoeia',
+      value: 1001,
+    });
+  });
+
   it('should throw an error when data is not found', async () => {
     const id = 3463;
     try {
