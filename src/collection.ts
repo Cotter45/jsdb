@@ -263,13 +263,19 @@ export class JsonCollectionManager {
     filter,
     limit,
     offset,
+    order,
   }: {
     filter: (item: T) => boolean;
     limit?: number;
     offset?: number;
+    order?: 'asc' | 'desc';
   }): Promise<T[]> {
-    const fileNames = await fs.readdir(this.directoryPath);
+    let fileNames = await fs.readdir(this.directoryPath);
     let allItems: T[] = [];
+
+    if (order === 'desc') {
+      fileNames = fileNames.reverse();
+    }
 
     let count = 0; // To keep track of the total number of items found
 
@@ -284,7 +290,12 @@ export class JsonCollectionManager {
 
       const filePath = path.join(this.directoryPath, fileName);
 
-      const jsonData = await this.readJsonFile(filePath);
+      let jsonData = await this.readJsonFile(filePath);
+
+      if (order === 'desc') {
+        jsonData = jsonData.reverse();
+      }
+
       const items = jsonData.filter(filter);
 
       if (limit && count + items.length > limit) {
