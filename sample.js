@@ -58,8 +58,6 @@ async function updateTest(collection) {
   const end = performance.now();
   console.log(`Update 1 took ${end - start} milliseconds.`);
   // Update 1 took 0.796208381652832 milliseconds.
-
-  // fs.rmSync('./test', { recursive: true });
 }
 
 async function main() {
@@ -70,6 +68,8 @@ async function main() {
   await getTest(collection);
   await getManyTest(collection);
   await updateTest(collection);
+
+  fs.rmSync('./test', { recursive: true });
 }
 
 main();

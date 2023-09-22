@@ -11,9 +11,7 @@ describe('JSDB', () => {
   });
 
   it('creates a new collection', async () => {
-    const collection = await collectionWrapper.createCollection(
-      'test-collection',
-    );
+    const collection = collectionWrapper.createCollection('test-collection');
     expect(collection).toBeDefined();
 
     await collection.insert({ name: 'test', value: 123 });
@@ -26,7 +24,7 @@ describe('JSDB', () => {
   });
 
   it('gets a collection', async () => {
-    const collection = await collectionWrapper.getCollection('test-collection');
+    const collection = collectionWrapper.getCollection('test-collection');
     expect(collection).toBeDefined();
 
     const result = await collection.get(1);
@@ -40,7 +38,7 @@ describe('JSDB', () => {
   it('should load an existing db', async () => {
     const db = new JSDB('./db');
 
-    const collection = await db.createCollection('users');
+    const collection = db.createCollection('users');
     expect(collection).toBeDefined();
 
     const result = await collection.get(1);
@@ -53,7 +51,7 @@ describe('JSDB', () => {
   it('deletes a collection', async () => {
     await collectionWrapper.deleteCollection('test-collection');
     try {
-      await collectionWrapper.getCollection('test-collection');
+      collectionWrapper.getCollection('test-collection');
     } catch (error) {
       expect(error).toBeDefined();
     }

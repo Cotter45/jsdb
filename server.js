@@ -5,8 +5,8 @@ import { parse } from 'url';
 // works with absolute or relative path
 const db = new JSDB('./db');
 
-await db.createCollection('users'); // 500kb
-await db.createCollection('products'); // 500kb
+db.createCollection('users'); // 500kb
+db.createCollection('products'); // 500kb
 
 const server = http.createServer((req, res) => {
   let data = '';
@@ -16,11 +16,12 @@ const server = http.createServer((req, res) => {
   });
 
   req.on('end', async () => {
+    console.log(db);
     const url = parse(req.url, true);
     const splitPath = url.pathname.split('/');
     const collectionName = splitPath[1];
     const id = +splitPath[2];
-    const collection = await db.getCollection(collectionName);
+    const collection = db.getCollection(collectionName);
 
     try {
       switch (req.method) {

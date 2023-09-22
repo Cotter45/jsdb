@@ -29,10 +29,10 @@ export class JSDB {
    * @param {number} maxFileSize - The maximum file size for the collection.
    * @return {Promise<JsonCollectionManager>} - The created collection manager.
    */
-  async createCollection(
+  createCollection(
     name: string,
-    maxFileSize = 500000, // 500KB,
-  ): Promise<JsonCollectionManager> {
+    maxFileSize: number = 500000, // 500KB,
+  ): JsonCollectionManager {
     const collectionPath = path.join(this.directoryPath, name);
     const manager = new JsonCollectionManager(collectionPath, maxFileSize);
     this.collections[name] = manager;
@@ -44,7 +44,7 @@ export class JSDB {
    * @param {string} name - The name of the collection.
    * @return {JsonCollectionManager} - The requested collection manager.
    */
-  async getCollection(name: string): Promise<JsonCollectionManager> {
+  getCollection(name: string): JsonCollectionManager {
     const collection = this.collections[name];
     return collection;
   }
