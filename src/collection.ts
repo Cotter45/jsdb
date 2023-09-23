@@ -2,7 +2,7 @@ import { promises as fs } from 'fs';
 import * as filesSync from 'fs';
 import * as path from 'path';
 import PQueue from 'p-queue';
-import Fuse from 'fuse.js/dist/fuse.min.js';
+import Fuse from 'fuse.js';
 import { HashMap } from './map.js';
 
 /**
@@ -24,8 +24,6 @@ export class JsonCollectionManager {
   private maxFileSize: number;
   private fileQueues: Record<string, PQueue>;
   private fileSizes: Record<string, number> = {};
-  private _ready: Promise<void>;
-  private _resolveReady!: () => void;
 
   /**
    * Create a new JSONCollectionManager.
@@ -44,10 +42,6 @@ export class JsonCollectionManager {
     this.index = new HashMap<string>(`${directoryPath}/index.json`);
     this.maxFileSize = maxFileSize;
     this.fileQueues = {};
-    this._ready = new Promise((resolve) => {
-      this._resolveReady = resolve;
-    });
-
     this.loadFromFile();
   }
 
@@ -91,10 +85,6 @@ export class JsonCollectionManager {
    */
   public async get<T>(id: number): Promise<T> {
     const document = await this.getDocument(id);
-    if (!document) {
-      return null;
-    }
-
     return document.find((doc: any) => doc.id === id);
   }
 
@@ -210,7 +200,7 @@ export class JsonCollectionManager {
       offset?: number;
       keys?: string[];
     },
-  ): Promise<T> {
+  ): Promise<T[]> {
     const fileNames = await fs.readdir(this.directoryPath);
     const fuseOptions = {
       keys,
@@ -223,7 +213,7 @@ export class JsonCollectionManager {
       location: 0,
       distance: 100,
     };
-    let allItems = [];
+    let allItems: T[] = [];
 
     for (const fileName of fileNames) {
       if (fileName.startsWith('.') || fileName === 'index.json') {
@@ -262,7 +252,7 @@ export class JsonCollectionManager {
   public async where<T>({
     filter,
     limit,
-    offset,
+    offset = 0,
     order,
   }: {
     filter: (item: T) => boolean;
@@ -396,7 +386,7 @@ export class JsonCollectionManager {
         const stats = filesSync.statSync(filePath);
         this.fileSizes[`${filePath}`] = stats.size;
       }
-    } catch (err) {
+    } catch (err: any) {
       // If the file doesn't exist, create it
       if (err.code === 'ENOENT') {
         filesSync.writeFileSync(this.indexFilePath, '{}', 'utf-8');

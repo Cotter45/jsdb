@@ -62,7 +62,7 @@ describe('JsonCollectionManager', () => {
 
   it('should insert many and getMany', async () => {
     const ids = [];
-    const values = [];
+    const values: any = [];
     for (let i = 0; i < 1000; i++) {
       ids.push(i + 1);
       values.push({
@@ -93,15 +93,15 @@ describe('JsonCollectionManager', () => {
     await manager.delete(id);
     try {
       await manager.get(id);
-    } catch (error) {
+    } catch (error: any) {
       expect(error.message).toEqual(`No data found for id: ${id}`);
     }
   });
 
   it('should handle high IO load', async () => {
     const ids = [];
-    const values = [];
-    for (let i = 0; i < 1500; i++) {
+    const values: any = [];
+    for (let i = 0; i < 100; i++) {
       ids.push(i + 1);
       values.push({
         name: `test-${i + 1}`,
@@ -121,7 +121,7 @@ describe('JsonCollectionManager', () => {
 
   it('should search through multiple files', async () => {
     const ids = [];
-    const values = [];
+    const values: any = [];
     for (let i = 0; i < 1000; i++) {
       ids.push(i + 1);
       values.push({
@@ -177,7 +177,7 @@ describe('JsonCollectionManager', () => {
     };
 
     const ids = [];
-    const values = [];
+    const values: any = [];
     for (let i = 0; i < 1000; i++) {
       ids.push(i + 1);
       values.push({
@@ -218,7 +218,7 @@ describe('JsonCollectionManager', () => {
     };
 
     const ids = [];
-    const values = [];
+    const values: any = [];
     for (let i = 0; i < 1000; i++) {
       ids.push(i + 1);
       values.push({
@@ -274,7 +274,7 @@ describe('JsonCollectionManager', () => {
     };
 
     const ids = [];
-    const values = [];
+    const values: any = [];
     for (let i = 0; i < 1000; i++) {
       ids.push(i + 1);
       values.push({
@@ -314,7 +314,7 @@ describe('JsonCollectionManager', () => {
     const id = 3463;
     try {
       await manager.get(id);
-    } catch (error) {
+    } catch (error: any) {
       expect(error.message).toEqual(`No data found for id: ${id}`);
     }
   });

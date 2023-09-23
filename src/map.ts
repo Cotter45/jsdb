@@ -1,5 +1,4 @@
-import { promises as fs } from 'fs';
-import * as fileSync from 'fs';
+import * as fs from 'fs';
 import PQueue from 'p-queue';
 
 /**
@@ -7,11 +6,9 @@ import PQueue from 'p-queue';
  * @template T The type of the hashmap value.
  */
 export class HashMap<T> {
-  private store: { [key: number | string]: T | number };
+  private store: { [key: number | string]: number | T };
   private filePath: string;
   private updateQueue: PQueue;
-  private _ready: Promise<void>;
-  private _resolveReady!: () => void;
   private currentId: number;
 
   /**
@@ -21,21 +18,8 @@ export class HashMap<T> {
     this.store = {};
     this.filePath = filePath;
     this.updateQueue = new PQueue({ concurrency: 1 });
-
-    this._ready = new Promise((resolve) => {
-      this._resolveReady = resolve;
-    });
-
+    this.currentId = 1;
     this.loadFromFile();
-  }
-
-  /**
-   * Updates the hashmap based on preload data.
-   * @param {T{}} preloadData The preload data.
-   * @returns {Promise<void>}
-   */
-  public async preload(preloadData: { [key: number]: T }): Promise<void> {
-    this.store = preloadData;
   }
 
   /**
@@ -55,7 +39,7 @@ export class HashMap<T> {
 
   /**
    * Get the filename for a given key.
-   * @param {string} key The key to get the filename for.
+   * @param {number | string} key The key to get the filename for.
    * @returns {string} Returns the filename.
    */
   public getFilename(key: string): string {
@@ -64,7 +48,7 @@ export class HashMap<T> {
 
   /**
    * Insert a key-value pair into the hashmap.
-   * @param {number} key The key to insert.
+   * @param {number | string} id The key to insert.
    * @param {T} value The value to insert.
    * @returns {Promise<void | T>}
    */
@@ -113,7 +97,7 @@ export class HashMap<T> {
    * @param {number} id The key to retrieve.
    * @returns {Promise<number | T>} Returns a Promise that resolves to the value or undefined.
    */
-  public async get(id: number): Promise<void | number | T> {
+  public async get(id: number): Promise<number | void | NonNullable<T> | null> {
     return this.updateQueue.add(() => {
       const rangeKey = this.getKey(id);
       if (!rangeKey) return null;
@@ -155,18 +139,18 @@ export class HashMap<T> {
   public async saveToFile(): Promise<void> {
     if (!this.updateQueue.isPaused) {
       const data = JSON.stringify(this.store, null, 2);
-      await fs.writeFile(this.filePath, data, 'utf-8');
+      fs.writeFileSync(this.filePath, data, 'utf-8');
     }
   }
 
   private loadFromFile(): void {
     // if file doesn't exist, create it
     try {
-      if (!fileSync.existsSync(this.filePath)) {
+      if (!fs.existsSync(this.filePath)) {
         throw new Error('Index file does not exist');
       }
 
-      const json = fileSync.readFileSync(this.filePath, 'utf-8');
+      const json = fs.readFileSync(this.filePath, 'utf-8');
       const data = JSON.parse(json);
       this.store = data;
 
@@ -187,7 +171,7 @@ export class HashMap<T> {
     } catch (err) {
       this.store = {};
       this.currentId = 1;
-      fileSync.writeFileSync(this.filePath, '{}', 'utf-8');
+      fs.writeFileSync(this.filePath, '{}', 'utf-8');
     }
   }
 

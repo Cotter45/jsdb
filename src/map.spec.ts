@@ -26,6 +26,10 @@ describe('HashMap', () => {
     await fs.unlink(filePath3);
   });
 
+  it('should return a full file path', () => {
+    expect(tree1.getFilename('1')).toBe(`${filePath1}/1.json`);
+  });
+
   it('should insert and get values', async () => {
     await tree1.insert(1, 123);
     expect(await tree1.get(1)).toBe(123);
