@@ -1,4 +1,4 @@
-import { JSDB } from './database.js';
+import { JSDB } from './database';
 import { promises as fs } from 'fs';
 import { join } from 'path';
 

@@ -1,9 +1,9 @@
 import { promises as fs } from 'fs';
 import * as filesSync from 'fs';
 import * as path from 'path';
-import PQueue from 'p-queue';
-import Fuse from 'fuse.js';
-import { HashMap } from './map.js';
+const Fuse = require('fuse.js');
+
+import HashMap from './map';
 
 /**
  * Manages the storage of JSON data in a collection of files. Each file holds an array of JSON objects.
@@ -16,21 +16,21 @@ import { HashMap } from './map.js';
  * @method delete - Delete a JSON object from the collection.
  * @method search - Search for JSON objects in the collection.
  */
-export class JsonCollectionManager {
+export default class JsonCollectionManager {
   private id: number;
   private directoryPath: string;
   private indexFilePath: string;
   private index: HashMap<string | number>;
   private maxFileSize: number;
-  private fileQueues: Record<string, PQueue>;
   private fileSizes: Record<string, number> = {};
+  private fileWritePromises: Record<string, Promise<void>> = {}; // Store ongoing write promises by file path
 
   /**
    * Create a new JSONCollectionManager.
    * @param directoryPath - The path of the directory where the data files are stored.
-   * @param maxFileSize - The maximum size of a data file in bytes, default is 100kb. Once a file reaches this size, it will no longer be written to.
+   * @param maxFileSize - The maximum size of a data file in bytes, default is 50kb. Once a file reaches this size, it will no longer be written to.
    */
-  constructor(directoryPath: string, maxFileSize = 102400) {
+  constructor(directoryPath: string, maxFileSize = 51200) {
     this.directoryPath = directoryPath;
     this.indexFilePath = `${directoryPath}/index.json`;
     this.id = 0;
@@ -41,7 +41,6 @@ export class JsonCollectionManager {
 
     this.index = new HashMap<string>(`${directoryPath}/index.json`);
     this.maxFileSize = maxFileSize;
-    this.fileQueues = {};
     this.loadFromFile();
   }
 
@@ -52,14 +51,11 @@ export class JsonCollectionManager {
   public async insert<T>(data: T): Promise<(T & { id: number }) | void> {
     this.id = this.id ? this.id + 1 : 1;
     const id = this.id;
-
     const filePath = await this.findFileForInsertion(this.getSizeInBytes(data));
 
-    // Get or create the queue for this file
-    const queue = this.getQueue(filePath);
-
-    // Return a promise that resolves when the operation is complete
-    return queue.add(async () => {
+    const writePromise = (
+      this.fileWritePromises[filePath] || Promise.resolve()
+    ).then(async () => {
       let jsonData: any[] = [];
 
       try {
@@ -67,16 +63,18 @@ export class JsonCollectionManager {
       } catch (err) {}
 
       const newData = { ...data, id };
-
       jsonData = jsonData.filter((item: any) => item.id !== id);
       jsonData.push(newData);
+      const newSize = this.getSizeInBytes(jsonData);
       await fs.writeFile(`${filePath}`, JSON.stringify(jsonData), 'utf-8');
       await this.index.insert(id, filePath);
-      const newSize = this.getSizeInBytes(jsonData);
+
       const fileName = path.basename(filePath);
       this.fileSizes[fileName] = newSize;
-      return newData;
     });
+
+    this.fileWritePromises[filePath] = writePromise;
+    return writePromise.then(() => ({ ...data, id }));
   }
 
   /**
@@ -85,6 +83,11 @@ export class JsonCollectionManager {
    */
   public async get<T>(id: number): Promise<T> {
     const document = await this.getDocument(id);
+
+    if (!document) {
+      throw new Error(`No data found for id: ${id}`);
+    }
+
     return document.find((doc: any) => doc.id === id);
   }
 
@@ -132,9 +135,9 @@ export class JsonCollectionManager {
     }
 
     const filePath: any = await this.index.get(id);
-    const queue = this.getQueue(filePath);
-
-    return queue.add(async () => {
+    const writePromise = (
+      this.fileWritePromises[filePath] || Promise.resolve()
+    ).then(async () => {
       const jsonData = await this.readJsonFile(filePath);
       const updatedData = jsonData.map((item: any) => {
         if (item.id === id) {
@@ -147,12 +150,14 @@ export class JsonCollectionManager {
       });
 
       await fs.writeFile(`${filePath}`, JSON.stringify(updatedData), 'utf-8');
-
       const size = this.getSizeInBytes(updatedData);
       const fileName = path.basename(filePath);
       this.fileSizes[fileName] = size;
       return updatedData.find((item: any) => item.id === id);
     });
+
+    this.fileWritePromises[filePath] = writePromise;
+    return writePromise;
   }
 
   /**
@@ -161,15 +166,14 @@ export class JsonCollectionManager {
    */
   public async delete<T>(id: number): Promise<T> {
     const filePath: any = await this.index.get(id);
-    const queue = this.getQueue(filePath);
-
-    return queue.add(async () => {
+    const writePromise = (
+      this.fileWritePromises[filePath] || Promise.resolve()
+    ).then(async () => {
       const jsonData = await this.readJsonFile(filePath);
       const updatedData = jsonData.filter((item: any) => item.id !== id);
       const item = jsonData.find((item: any) => item.id === id);
 
       await fs.writeFile(`${filePath}`, JSON.stringify(updatedData), 'utf-8');
-
       const size = this.getSizeInBytes(updatedData);
 
       if (size === 0) {
@@ -182,6 +186,9 @@ export class JsonCollectionManager {
       }
       return item;
     });
+
+    this.fileWritePromises[filePath] = writePromise;
+    return writePromise;
   }
 
   /**
@@ -314,6 +321,9 @@ export class JsonCollectionManager {
     // If all files are full, create a new one
     const newFilePath = this.getNewFilePath();
     this.fileSizes[newFilePath] = dataSize;
+
+    // Update the index file
+    await this.index.insert(this.id, newFilePath, true);
     return newFilePath;
   }
 
@@ -343,20 +353,6 @@ export class JsonCollectionManager {
   private getSizeInBytes(object: any): number {
     const jsonString = JSON.stringify(object);
     return Buffer.byteLength(jsonString, 'utf-8');
-  }
-
-  private getQueue(filePath: string): PQueue {
-    if (!this.fileQueues[filePath]) {
-      const queue = new PQueue({ concurrency: 1 });
-
-      queue.on('idle', async () => {
-        await this.index.awaitQueueDrain();
-      });
-
-      this.fileQueues[filePath] = queue;
-    }
-
-    return this.fileQueues[filePath];
   }
 
   private loadFromFile(): void {

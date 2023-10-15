@@ -1,4 +1,4 @@
-import { HashMap } from './map.js';
+import HashMap from './map';
 import { promises as fs } from 'fs';
 
 describe('HashMap', () => {
@@ -28,6 +28,18 @@ describe('HashMap', () => {
 
   it('should return a full file path', () => {
     expect(tree1.getFilename('1')).toBe(`${filePath1}/1.json`);
+  });
+
+  it('should insert and get 1 value', async () => {
+    const newMap = new HashMap<number>('one-off.json');
+    await newMap.insert(1, 123);
+    expect(await newMap.get(1)).toBe(123);
+    await newMap.saveToFile();
+
+    const savedMap = new HashMap<number>('one-off.json');
+    expect(await savedMap.get(1)).toBe(123);
+
+    await fs.unlink('one-off.json');
   });
 
   it('should insert and get values', async () => {
@@ -76,8 +88,8 @@ describe('HashMap', () => {
   it('should load a tree from a file', async () => {
     const tree = new HashMap<number>('test.json');
 
-    expect(await tree.get(1)).toBe(123);
-    expect(await tree.get(20)).toBe(456);
+    expect(await tree.get(1)).toBe(99);
+    expect(await tree.get(20)).toBe(99);
     expect(await tree.get(494849)).toBeNull();
   });
 
@@ -93,6 +105,6 @@ describe('HashMap', () => {
       expect(await tree.get(keys[i])).toBe(value);
     }
 
-    await tree.awaitQueueDrain();
+    await tree.saveToFile();
   });
 });

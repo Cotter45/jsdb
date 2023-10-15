@@ -1,14 +1,13 @@
-import * as fs from 'fs';
-import PQueue from 'p-queue';
+import { promises as fs } from 'fs';
+import * as fileSync from 'fs';
 
 /**
  * HashMap Class. It's a simple file-backed asynchronous hashmap.
  * @template T The type of the hashmap value.
  */
-export class HashMap<T> {
+export default class HashMap<T> {
   private store: { [key: number | string]: number | T };
   private filePath: string;
-  private updateQueue: PQueue;
   private currentId: number;
 
   /**
@@ -17,7 +16,6 @@ export class HashMap<T> {
   constructor(filePath: string) {
     this.store = {};
     this.filePath = filePath;
-    this.updateQueue = new PQueue({ concurrency: 1 });
     this.currentId = 1;
     this.loadFromFile();
   }
@@ -52,44 +50,67 @@ export class HashMap<T> {
    * @param {T} value The value to insert.
    * @returns {Promise<void | T>}
    */
-  public async insert(id: number, value: T): Promise<void | T> {
-    return this.updateQueue.add(() => {
-      const key = this.getKey(id);
-      const currentStoreId: any = this.store['currentId'] || 1;
+  public async insert(
+    id: number,
+    value: T,
+    oversize?: boolean,
+  ): Promise<void | T> {
+    const key = this.getKey(id);
+    const currentStoreId: any = this.store['currentId'] || 1;
 
-      if (id > currentStoreId) {
-        this.store['currentId'] = id;
+    if (oversize) {
+      const key = this.getKey(id);
+      const currentFilepath = key ? this.getFilename(key) : null;
+
+      if (key && currentFilepath) {
+        const file = this.store[key];
+        delete this.store[key];
+        const [start, end] = key.split('-').map((n) => parseInt(n, 10));
+        const newEnd = end - 2;
+        const newKey = `${start}-${newEnd}`;
+        this.store[newKey] = file;
       }
+
+      this.store['currentId'] = id;
+      this.store[`${id}-${id + 2}`] = value;
+      await this.saveToFile();
+      return value;
+    }
+
+    if (id > currentStoreId) {
+      this.store['currentId'] = id;
+    }
+
+    if (key) {
+      const [start, end] = key.split('-').map((n) => parseInt(n, 10));
+      const higherEnd = Math.max(end, id + 2);
+      delete this.store[key];
+      this.store[`${start}-${higherEnd}`] = value;
+      await this.saveToFile();
+      return;
+    }
+
+    const newEnd = id + 2;
+
+    let allKeys: any = Object.keys(this.store);
+    if (allKeys.length > 1) {
+      allKeys = allKeys.filter((k: string) => k && k !== 'currentId');
+      allKeys = allKeys.map((k: string) => parseInt(k.split('-')[1], 10));
+      const maxKey = Math.max(...allKeys);
+      const key = this.getKey(maxKey - 2);
 
       if (key) {
         const [start, end] = key.split('-').map((n) => parseInt(n, 10));
-        const higherEnd = Math.max(end, id + 2);
+        const value = this.store[key];
         delete this.store[key];
-        this.store[`${start}-${higherEnd}`] = value;
-        return;
+        this.store[`${start}-${end - 1}`] = value;
       }
+    }
 
-      const newEnd = id + 2;
-
-      let allKeys: any = Object.keys(this.store);
-      if (allKeys.length > 1) {
-        allKeys = allKeys.filter((k: string) => k && k !== 'currentId');
-        allKeys = allKeys.map((k: string) => parseInt(k.split('-')[1], 10));
-        const maxKey = Math.max(...allKeys);
-        const key = this.getKey(maxKey - 2);
-
-        if (key) {
-          const [start, end] = key.split('-').map((n) => parseInt(n, 10));
-          const value = this.store[key];
-          delete this.store[key];
-          this.store[`${start}-${end - 1}`] = value;
-        }
-      }
-
-      const newKey = `${id}-${newEnd}`;
-      this.store[newKey] = value;
-      return value;
-    });
+    const newKey = `${id}-${newEnd}`;
+    this.store[newKey] = value;
+    await this.saveToFile();
+    return value;
   }
 
   /**
@@ -98,11 +119,9 @@ export class HashMap<T> {
    * @returns {Promise<number | T>} Returns a Promise that resolves to the value or undefined.
    */
   public async get(id: number): Promise<number | void | NonNullable<T> | null> {
-    return this.updateQueue.add(() => {
-      const rangeKey = this.getKey(id);
-      if (!rangeKey) return null;
-      return this.store[rangeKey] || null;
-    });
+    const rangeKey = this.getKey(id);
+    if (!rangeKey) return null;
+    return this.store[rangeKey] || null;
   }
 
   /**
@@ -111,13 +130,12 @@ export class HashMap<T> {
    * @returns {Promise<void>}
    */
   public async delete(id: number): Promise<void> {
-    return this.updateQueue.add(() => {
-      const key = this.getKey(id);
-      if (!key) {
-        throw new Error(`No valid range found for ID: ${id}`);
-      }
-      delete this.store[key];
-    });
+    const key = this.getKey(id);
+    if (!key) {
+      throw new Error(`No valid range found for ID: ${id}`);
+    }
+    delete this.store[key];
+    await this.saveToFile();
   }
 
   /**
@@ -127,30 +145,27 @@ export class HashMap<T> {
    * @returns {Promise<void>}
    */
   public async update(id: number, value: T): Promise<void> {
-    return this.updateQueue.add(() => {
-      const key = this.getKey(id);
-      if (!key) {
-        throw new Error(`No valid range found for ID: ${id}`);
-      }
-      this.store[key] = value;
-    });
+    const key = this.getKey(id);
+    if (!key) {
+      throw new Error(`No valid range found for ID: ${id}`);
+    }
+    this.store[key] = value;
+    await this.saveToFile();
   }
 
   public async saveToFile(): Promise<void> {
-    if (!this.updateQueue.isPaused) {
-      const data = JSON.stringify(this.store, null, 2);
-      fs.writeFileSync(this.filePath, data, 'utf-8');
-    }
+    const data = JSON.stringify(this.store, null, 2);
+    await fs.writeFile(this.filePath, data, 'utf-8');
   }
 
   private loadFromFile(): void {
     // if file doesn't exist, create it
     try {
-      if (!fs.existsSync(this.filePath)) {
+      if (!fileSync.existsSync(this.filePath)) {
         throw new Error('Index file does not exist');
       }
 
-      const json = fs.readFileSync(this.filePath, 'utf-8');
+      const json = fileSync.readFileSync(this.filePath, 'utf-8');
       const data = JSON.parse(json);
       this.store = data;
 
@@ -171,17 +186,7 @@ export class HashMap<T> {
     } catch (err) {
       this.store = {};
       this.currentId = 1;
-      fs.writeFileSync(this.filePath, '{}', 'utf-8');
+      fileSync.writeFileSync(this.filePath, '{}', 'utf-8');
     }
-  }
-
-  /**
-   * Await until all pending updates to the hashmap have finished, and then save the hashmap to the file.
-   * @returns {Promise<void>}
-   */
-  public async awaitQueueDrain(): Promise<void> {
-    this.updateQueue.on('idle', async () => {
-      await this.saveToFile();
-    });
   }
 }

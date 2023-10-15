@@ -1,5 +1,5 @@
-import JSDB from './dist/index.js';
-import fs from 'fs';
+const JSDB = require('./dist/index.js').default;
+const fs = require('fs');
 
 async function insertTest(collection) {
   const ids = [];

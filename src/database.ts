@@ -1,7 +1,8 @@
-import { JsonCollectionManager } from './collection.js';
 import { promises as fs } from 'fs';
 import * as fileSync from 'fs';
 import * as path from 'path';
+
+import JsonCollectionManager from './collection';
 
 /**
  * Class representing a database manager for JSON collections.
