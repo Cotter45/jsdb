@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-import { JsonCollectionManager } from './collection.js';
+import JsonCollectionManager from './collection';
 
 describe('JsonCollectionManager', () => {
   const directoryPath = './test-data';

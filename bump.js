@@ -1,5 +1,5 @@
-import json from './package.json' assert { type: 'json' };
-import fs from 'fs';
+const fs = require('fs');
+const json = JSON.parse(fs.readFileSync('package.json', 'utf8'));
 
 const version = json.version.split('.');
 version[2] = (parseInt(version[2]) + 1).toString();

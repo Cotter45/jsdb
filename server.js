@@ -1,6 +1,6 @@
-import http from 'http';
-import JSDB from './dist/index.js';
-import { parse } from 'url';
+const http = require('http');
+const JSDB = require('./dist/index.js').default;
+const { parse } = require('url');
 
 // works with absolute or relative path
 const db = new JSDB('./db');
@@ -16,7 +16,6 @@ const server = http.createServer((req, res) => {
   });
 
   req.on('end', async () => {
-    console.log(db);
     const url = parse(req.url, true);
     const splitPath = url.pathname.split('/');
     const collectionName = splitPath[1];
