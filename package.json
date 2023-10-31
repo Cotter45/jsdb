@@ -1,6 +1,6 @@
 {
   "name": "@cotter45/jsdb",
-  "version": "2.0.4",
+  "version": "2.0.5",
   "description": "A persistent JSON database for node.js",
   "main": "dist/index.js",
   "types": "dist/index",
@@ -42,21 +42,21 @@
   },
   "devDependencies": {
     "@tsconfig/node18": "^18.2.2",
-    "@types/jest": "^29.5.5",
-    "@types/node": "^20.6.3",
-    "@typescript-eslint/eslint-plugin": "^6.7.2",
-    "@typescript-eslint/parser": "^6.7.2",
-    "eslint": "^8.50.0",
+    "@types/jest": "^29.5.6",
+    "@types/node": "^20.8.9",
+    "@typescript-eslint/eslint-plugin": "^6.9.0",
+    "@typescript-eslint/parser": "^6.9.0",
+    "eslint": "^8.52.0",
     "eslint-config-prettier": "^9.0.0",
-    "eslint-plugin-prettier": "^5.0.0",
+    "eslint-plugin-prettier": "^5.0.1",
     "jest": "^29.7.0",
-    "npm-check-updates": "^16.14.4",
+    "npm-check-updates": "^16.14.6",
     "prettier": "^3.0.3",
     "ts-jest": "^29.1.1",
     "ts-node": "^10.9.1",
     "typescript": "^5.2.2"
   },
   "dependencies": {
-    "fuse.js": "^6.6.2"
+    "fuse.js": "^7.0.0"
   }
 }
