@@ -4,6 +4,7 @@ import * as path from 'path';
 const Fuse = require('fuse.js');
 
 import HashMap from './map';
+import { AsyncQueue } from './queue';
 
 /**
  * Manages the storage of JSON data in a collection of files. Each file holds an array of JSON objects.
@@ -24,6 +25,7 @@ export default class JsonCollectionManager {
   private maxFileSize: number;
   private fileSizes: Record<string, number> = {};
   private fileWritePromises: Record<string, Promise<void>> = {}; // Store ongoing write promises by file path
+  private queue: AsyncQueue;
 
   /**
    * Create a new JSONCollectionManager.
@@ -42,6 +44,7 @@ export default class JsonCollectionManager {
     this.index = new HashMap<string>(`${directoryPath}/index.json`);
     this.maxFileSize = maxFileSize;
     this.loadFromFile();
+    this.queue = new AsyncQueue();
   }
 
   /**
@@ -53,28 +56,28 @@ export default class JsonCollectionManager {
     const id = this.id;
     const filePath = await this.findFileForInsertion(this.getSizeInBytes(data));
 
-    const writePromise = (
-      this.fileWritePromises[filePath] || Promise.resolve()
-    ).then(async () => {
-      let jsonData: any[] = [];
+    return new Promise((resolve, reject) => {
+      this.queue.enqueue(async () => {
+        try {
+          let jsonData: any[] = await this.readJsonFile(filePath);
 
-      try {
-        jsonData = await this.readJsonFile(filePath);
-      } catch (err) {}
+          const newData = { ...data, id };
+          jsonData = jsonData.filter((item: any) => item.id !== id);
+          jsonData.push(newData);
+          const newSize = this.getSizeInBytes(jsonData);
 
-      const newData = { ...data, id };
-      jsonData = jsonData.filter((item: any) => item.id !== id);
-      jsonData.push(newData);
-      const newSize = this.getSizeInBytes(jsonData);
-      await fs.writeFile(`${filePath}`, JSON.stringify(jsonData), 'utf-8');
-      await this.index.insert(id, filePath);
+          await fs.writeFile(`${filePath}`, JSON.stringify(jsonData), 'utf-8');
+          await this.index.insert(id, filePath);
 
-      const fileName = path.basename(filePath);
-      this.fileSizes[fileName] = newSize;
+          const fileName = path.basename(filePath);
+          this.fileSizes[fileName] = newSize;
+
+          resolve({ ...data, id });
+        } catch (error) {
+          reject(error);
+        }
+      });
     });
-
-    this.fileWritePromises[filePath] = writePromise;
-    return writePromise.then(() => ({ ...data, id }));
   }
 
   /**
@@ -82,13 +85,19 @@ export default class JsonCollectionManager {
    * @param id - The ID of the item.
    */
   public async get<T>(id: number): Promise<T> {
-    const document = await this.getDocument(id);
-
-    if (!document) {
-      throw new Error(`No data found for id: ${id}`);
-    }
-
-    return document.find((doc: any) => doc.id === id);
+    return new Promise((resolve, reject) => {
+      this.queue.enqueue(async () => {
+        try {
+          const document = await this.getDocument(id);
+          if (!document) {
+            throw new Error(`No data found for id: ${id}`);
+          }
+          resolve(document.find((doc: any) => doc.id === id));
+        } catch (error) {
+          reject(error);
+        }
+      });
+    });
   }
 
   private async getDocument(id: number): Promise<any> {
@@ -106,9 +115,17 @@ export default class JsonCollectionManager {
    * Retrieve multiple items from the collection.
    * @param ids - An array of IDs of the items.
    */
-  public async getMany<T>(ids: number[]): Promise<T> {
-    const documents = await this.getManyDocuments(ids);
-    return documents;
+  public async getMany<T>(ids: number[]): Promise<T[]> {
+    return new Promise((resolve, reject) => {
+      this.queue.enqueue(async () => {
+        try {
+          const documents = await this.getManyDocuments(ids);
+          resolve(documents);
+        } catch (error) {
+          reject(error);
+        }
+      });
+    });
   }
 
   private async getManyDocuments(ids: number[]): Promise<any> {
@@ -129,35 +146,26 @@ export default class JsonCollectionManager {
    * @param data - An object containing the new values. It will be merged with the current item data.
    */
   public async update<T>(id: number, data: T): Promise<T> {
-    const document = await this.getDocument(id);
-    if (!document) {
-      throw new Error(`No data found for id: ${id}`);
-    }
+    return new Promise((resolve, reject) => {
+      this.queue.enqueue(async () => {
+        try {
+          const filePath = (await this.index.get(id)) as string;
+          const jsonData = await this.readJsonFile(filePath);
 
-    const filePath: any = await this.index.get(id);
-    const writePromise = (
-      this.fileWritePromises[filePath] || Promise.resolve()
-    ).then(async () => {
-      const jsonData = await this.readJsonFile(filePath);
-      const updatedData = jsonData.map((item: any) => {
-        if (item.id === id) {
-          return {
-            ...item,
-            ...data,
-          };
+          const updatedData = jsonData.map((item: any) => {
+            return item.id === id ? { ...item, ...data } : item;
+          });
+
+          await fs.writeFile(filePath, JSON.stringify(updatedData), 'utf-8');
+          const size = this.getSizeInBytes(updatedData);
+          this.fileSizes[path.basename(filePath)] = size;
+
+          resolve(updatedData.find((item: any) => item.id === id));
+        } catch (error) {
+          reject(error);
         }
-        return item;
       });
-
-      await fs.writeFile(`${filePath}`, JSON.stringify(updatedData), 'utf-8');
-      const size = this.getSizeInBytes(updatedData);
-      const fileName = path.basename(filePath);
-      this.fileSizes[fileName] = size;
-      return updatedData.find((item: any) => item.id === id);
     });
-
-    this.fileWritePromises[filePath] = writePromise;
-    return writePromise;
   }
 
   /**
@@ -165,30 +173,32 @@ export default class JsonCollectionManager {
    * @param id - The ID of the item.
    */
   public async delete<T>(id: number): Promise<T> {
-    const filePath: any = await this.index.get(id);
-    const writePromise = (
-      this.fileWritePromises[filePath] || Promise.resolve()
-    ).then(async () => {
-      const jsonData = await this.readJsonFile(filePath);
-      const updatedData = jsonData.filter((item: any) => item.id !== id);
-      const item = jsonData.find((item: any) => item.id === id);
+    return new Promise((resolve, reject) => {
+      this.queue.enqueue(async () => {
+        try {
+          const filePath = (await this.index.get(id)) as string;
+          const jsonData = await this.readJsonFile(filePath);
 
-      await fs.writeFile(`${filePath}`, JSON.stringify(updatedData), 'utf-8');
-      const size = this.getSizeInBytes(updatedData);
+          const updatedData = jsonData.filter((item: any) => item.id !== id);
+          const itemToDelete = jsonData.find((item: any) => item.id === id);
 
-      if (size === 0) {
-        await this.index.delete(id);
-        await fs.unlink(filePath);
-        delete this.fileSizes[path.basename(filePath)];
-      } else {
-        const fileName = path.basename(filePath);
-        this.fileSizes[fileName] = size;
-      }
-      return item;
+          await fs.writeFile(filePath, JSON.stringify(updatedData), 'utf-8');
+          const size = this.getSizeInBytes(updatedData);
+
+          if (size === 0) {
+            await this.index.delete(id);
+            await fs.unlink(filePath);
+            delete this.fileSizes[path.basename(filePath)];
+          } else {
+            this.fileSizes[path.basename(filePath)] = size;
+          }
+
+          resolve(itemToDelete);
+        } catch (error) {
+          reject(error);
+        }
+      });
     });
-
-    this.fileWritePromises[filePath] = writePromise;
-    return writePromise;
   }
 
   /**
@@ -208,45 +218,54 @@ export default class JsonCollectionManager {
       keys?: string[];
     },
   ): Promise<T[]> {
-    const fileNames = await fs.readdir(this.directoryPath);
-    const fuseOptions = {
-      keys,
-      isCaseSensitive: false,
-      includeScore: true,
-      shouldSort: true,
-      findAllMatches: true,
-      minMatchCharLength: 4,
-      threshold: 0.6,
-      location: 0,
-      distance: 100,
-    };
-    let allItems: T[] = [];
+    return new Promise((resolve, reject) => {
+      this.queue.enqueue(async () => {
+        try {
+          const fileNames = await fs.readdir(this.directoryPath);
+          const fuseOptions = {
+            keys,
+            isCaseSensitive: false,
+            includeScore: true,
+            shouldSort: true,
+            findAllMatches: true,
+            minMatchCharLength: 4,
+            threshold: 0.6,
+            location: 0,
+            distance: 100,
+          };
+          let allItems: T[] = [];
 
-    for (const fileName of fileNames) {
-      if (fileName.startsWith('.') || fileName === 'index.json') {
-        continue;
-      }
+          for (const fileName of fileNames) {
+            if (fileName.startsWith('.') || fileName === 'index.json') {
+              continue;
+            }
 
-      const filePath = path.join(this.directoryPath, fileName);
-      let fileData = JSON.parse(await fs.readFile(filePath, 'utf-8'));
+            const filePath = path.join(this.directoryPath, fileName);
+            let fileData = JSON.parse(await fs.readFile(filePath, 'utf-8'));
 
-      // If fileData is not an array, wrap it in an array so Fuse can work
-      if (!Array.isArray(fileData)) {
-        fileData = [fileData];
-      }
+            if (!Array.isArray(fileData)) {
+              fileData = [fileData];
+            }
 
-      const fuse = new Fuse(fileData, fuseOptions);
-      const searchResults = fuse.search(text);
-      const items = searchResults.map((result: any) => result.item);
-      allItems = allItems.concat(items);
-    }
+            const fuse = new Fuse(fileData, fuseOptions);
+            const searchResults = fuse.search(text);
+            const items = searchResults.map((result: any) => result.item);
+            allItems = allItems.concat(items);
+          }
 
-    const fuseAll = new Fuse(allItems, fuseOptions);
-    const finalResults = fuseAll.search(text);
+          const fuseAll = new Fuse(allItems, fuseOptions);
+          const finalResults = fuseAll.search(text);
 
-    return finalResults
-      .map((result: any) => result.item)
-      .slice(offset, offset + limit);
+          resolve(
+            finalResults
+              .map((result: any) => result.item)
+              .slice(offset, offset + limit),
+          );
+        } catch (error) {
+          reject(error);
+        }
+      });
+    });
   }
 
   /**
@@ -267,45 +286,53 @@ export default class JsonCollectionManager {
     offset?: number;
     order?: 'asc' | 'desc';
   }): Promise<T[]> {
-    let fileNames = await fs.readdir(this.directoryPath);
-    let allItems: T[] = [];
+    return new Promise((resolve, reject) => {
+      this.queue.enqueue(async () => {
+        try {
+          let fileNames = await fs.readdir(this.directoryPath);
+          let allItems: T[] = [];
 
-    if (order === 'desc') {
-      fileNames = fileNames.reverse();
-    }
+          if (order === 'desc') {
+            fileNames = fileNames.reverse();
+          }
 
-    let count = 0; // To keep track of the total number of items found
+          let count = 0; // To keep track of the total number of items found
 
-    for (const fileName of fileNames) {
-      if (limit && count >= limit + offset) {
-        break;
-      }
+          for (const fileName of fileNames) {
+            if (limit && count >= limit + offset) {
+              break;
+            }
 
-      if (fileName.startsWith('.') || fileName === 'index.json') {
-        continue;
-      }
+            if (fileName.startsWith('.') || fileName === 'index.json') {
+              continue;
+            }
 
-      const filePath = path.join(this.directoryPath, fileName);
+            const filePath = path.join(this.directoryPath, fileName);
 
-      let jsonData = await this.readJsonFile(filePath);
+            let jsonData = await this.readJsonFile(filePath);
 
-      if (order === 'desc') {
-        jsonData = jsonData.reverse();
-      }
+            if (order === 'desc') {
+              jsonData = jsonData.reverse();
+            }
 
-      const items = jsonData.filter(filter);
+            const items = jsonData.filter(filter);
 
-      if (limit && count + items.length > limit) {
-        const itemsToTake = limit - count;
-        allItems = allItems.concat(items.slice(0, itemsToTake));
-        break;
-      }
+            if (limit && count + items.length > limit) {
+              const itemsToTake = limit - count;
+              allItems = allItems.concat(items.slice(0, itemsToTake));
+              break;
+            }
 
-      allItems = allItems.concat(items);
-      count += items.length;
-    }
+            allItems = allItems.concat(items);
+            count += items.length;
+          }
 
-    return allItems;
+          resolve(allItems);
+        } catch (error) {
+          reject(error);
+        }
+      });
+    });
   }
 
   private async findFileForInsertion(dataSize: number): Promise<string> {

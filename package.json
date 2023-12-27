@@ -30,7 +30,7 @@
     "lint:check": "eslint --ext .ts .",
     "start": "node sample.js",
     "pretest": "npm run lint",
-    "test": "jest --watchAll=true --detectOpenHandles",
+    "test": "jest ./src --detectOpenHandles",
     "test:clear": "jest --clearCache",
     "test:coverage": "jest --coverage --watchAll=false --detectOpenHandles",
     "update": "ncu -u && npm install",

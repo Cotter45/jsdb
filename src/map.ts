@@ -1,6 +1,8 @@
 import { promises as fs } from 'fs';
 import * as fileSync from 'fs';
 
+import { AsyncQueue } from './queue';
+
 /**
  * HashMap Class. It's a simple file-backed asynchronous hashmap.
  * @template T The type of the hashmap value.
@@ -9,6 +11,7 @@ export default class HashMap<T> {
   private store: { [key: number | string]: number | T };
   private filePath: string;
   private currentId: number;
+  private queue: AsyncQueue;
 
   /**
    * @param {string} filePath The file path to load the hashmap data.
@@ -18,6 +21,7 @@ export default class HashMap<T> {
     this.filePath = filePath;
     this.currentId = 1;
     this.loadFromFile();
+    this.queue = new AsyncQueue();
   }
 
   /**
@@ -73,7 +77,7 @@ export default class HashMap<T> {
 
       this.store['currentId'] = id;
       this.store[`${id}-${id + 2}`] = value;
-      await this.saveToFile();
+      this.enqueueSaveToFile();
       return value;
     }
 
@@ -86,7 +90,7 @@ export default class HashMap<T> {
       const higherEnd = Math.max(end, id + 2);
       delete this.store[key];
       this.store[`${start}-${higherEnd}`] = value;
-      await this.saveToFile();
+      this.enqueueSaveToFile();
       return;
     }
 
@@ -109,7 +113,7 @@ export default class HashMap<T> {
 
     const newKey = `${id}-${newEnd}`;
     this.store[newKey] = value;
-    await this.saveToFile();
+    this.enqueueSaveToFile();
     return value;
   }
 
@@ -135,7 +139,7 @@ export default class HashMap<T> {
       throw new Error(`No valid range found for ID: ${id}`);
     }
     delete this.store[key];
-    await this.saveToFile();
+    this.enqueueSaveToFile();
   }
 
   /**
@@ -150,7 +154,11 @@ export default class HashMap<T> {
       throw new Error(`No valid range found for ID: ${id}`);
     }
     this.store[key] = value;
-    await this.saveToFile();
+    this.enqueueSaveToFile();
+  }
+
+  private enqueueSaveToFile(): void {
+    this.queue.enqueue(() => this.saveToFile());
   }
 
   public async saveToFile(): Promise<void> {
