@@ -38,12 +38,12 @@ const server = http.createServer((req, res) => {
         case 'PUT':
           const updatedItem = JSON.parse(data);
           await collection.update(id, updatedItem);
-          res.end('Item updated');
+          res.end(JSON.stringify(updatedItem));
           break;
 
         case 'DELETE':
-          await collection.delete(id);
-          res.end('Item deleted');
+          const deletedItem = await collection.delete(id);
+          res.end(JSON.stringify(deletedItem));
           break;
 
         default:
